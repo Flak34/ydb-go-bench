@@ -60,7 +60,7 @@ func makeTable(db *ydb.Driver, tableName string) {
 }
 
 func fillTable(db *ydb.Driver, tableName string) {
-	const total = 100000000
+	const total = 1000000000
 	const batchSize = 50000
 
 	rand.Seed(time.Now().UnixNano())

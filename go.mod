@@ -1,4 +1,4 @@
-module awesomeProject
+module github.com/Flak34/ydb-go-bench
 
 go 1.25.3
 

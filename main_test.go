@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"math/rand"
 	"os"
 	"testing"
 
@@ -12,7 +11,7 @@ import (
 
 const (
 	selectQuery = "SELECT * FROM test1 WHERE test1.id > %d limit 10;"
-	rowsCount   = 100000000
+	rowsCount   = 1000000000
 	selectCount = 20
 )
 
@@ -37,8 +36,8 @@ func TestMain(m *testing.M) {
 
 func makeSelects(count int) []string {
 	var res []string
-	for range count {
-		res = append(res, fmt.Sprintf(selectQuery, rand.Uint64()%rowsCount))
+	for i := range count {
+		res = append(res, fmt.Sprintf(selectQuery, rowsCount/count*i))
 	}
 
 	return res

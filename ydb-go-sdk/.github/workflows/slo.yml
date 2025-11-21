@@ -1,0 +1,130 @@
+name: slo
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+      - release-*
+  workflow_dispatch:
+    inputs:
+      github_pull_request_number:
+        required: true
+      slo_workload_duration_seconds:
+        default: '600'
+        required: false
+      slo_workload_read_max_rps:
+        default: '1000'
+        required: false
+      slo_workload_write_max_rps:
+        default: '100'
+        required: false
+
+jobs:
+  ydb-slo-action-init:
+    if: (!contains(github.event.pull_request.labels.*.name, 'no slo'))
+
+    name: Run YDB SLO Tests
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        sdk:
+          - id: database_sql_table
+            name: database-sql-table
+            path: ./database/sql/table
+            label: database/sql/table
+          - id: database_sql_query
+            name: database-sql-query
+            path: ./database/sql/query
+            label: database/sql/query
+          - id: native_query
+            name: native-query
+            path: ./native/query
+            label: native/query
+          - id: native_table
+            name: native-table
+            path: ./native/table
+            label: native/table
+          - id: native_table_over_query_service
+            name: native-table-over-query-service
+            path: ./native/table/over/query/service
+            label: native/table/over/query/service
+          - id: gorm_table
+            name: gorm-table
+            path: ./gorm/table
+            label: gorm/table
+          - id: gorm_query
+            name: gorm-query
+            path: ./gorm/query
+            label: gorm/query
+          - id: xorm_table
+            name: xorm-table
+            path: ./xorm/table
+            label: xorm/table
+          - id: xorm_query
+            name: xorm-query
+            path: ./xorm/query
+            label: xorm/query
+
+    concurrency:
+      group: slo-${{ github.ref }}-${{ matrix.sdk.name }}
+      cancel-in-progress: true
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.25.x
+          cache: true
+
+      - name: Build workload
+        run: |
+          cd ./tests/slo
+          go build -o .bin/${{matrix.sdk.id}}_linux_amd64 -ldflags "-X \"main.ref=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}\" -X \"main.label=${{matrix.sdk.label}}\" -X \"main.jobName=${{matrix.sdk.name}}\"" ${{matrix.sdk.path}}
+          chmod +x .bin/${{matrix.sdk.id}}_linux_amd64
+
+      - name: Inititialize YDB SLO
+        uses: ydb-platform/ydb-slo-action/init@main
+        with:
+          github_pull_request_number: ${{ github.event.inputs.github_pull_request_number }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          sdk_name: ${{ matrix.sdk.name }}
+          ydb_database_node_count: 5
+
+      - name: Prepare SLO Database
+        run: |
+          ./tests/slo/.bin/${{matrix.sdk.id}}_linux_amd64 create grpc://localhost:2135 /Root/testdb
+
+      - name: Run SLO Tests
+        run: |
+          ./tests/slo/.bin/${{matrix.sdk.id}}_linux_amd64 run grpc://localhost:2135 /Root/testdb \
+            -prom-pgw localhost:9091 \
+            -report-period 250 \
+            -time ${{inputs.slo_workload_duration_seconds || 600}} \
+            -read-rps ${{inputs.slo_workload_read_max_rps || 1000}} \
+            -write-rps ${{inputs.slo_workload_write_max_rps || 100}} \
+            -read-timeout 1000 \
+            -write-timeout 1000 || true
+
+      - if: always()
+        name: Store ydb chaos testing logs
+        run: |
+          docker logs ydb-chaos > chaos-ydb.log
+
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{matrix.sdk.name}}-chaos-ydb.log
+          path: ./chaos-ydb.log
+          retention-days: 1
+
+      - if: always()
+        name: Cleanup SLO Database
+        run: |
+          ./tests/slo/.bin/${{matrix.sdk.id}}_linux_amd64 cleanup grpc://localhost:2135 /Root/testdb || true

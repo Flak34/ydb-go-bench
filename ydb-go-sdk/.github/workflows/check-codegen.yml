@@ -1,0 +1,49 @@
+name: check-codegen
+on:
+  push:
+    branches:
+      - master
+      - release-*
+  pull_request:
+  workflow_dispatch:
+jobs:
+  test:
+    concurrency:
+      group: codegen-${{ github.ref }}-${{ matrix.os }}-${{ matrix.go-version }}
+      cancel-in-progress: true
+    strategy:
+      matrix:
+        os: [ ubuntu-latest ]
+        go-version: [1.24.x]
+    runs-on: ${{ matrix.os }}
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Setup Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ matrix.go-version }}
+
+    - name: Go Env
+      run: |
+        go env
+
+    - name: Build
+      run: |
+        go install ./internal/cmd/gtrace
+        go install ./internal/cmd/gstack
+        go install go.uber.org/mock/mockgen@v0.4.0
+
+    - name: Clean and re-generate *_gtrace.go files
+      run: |
+        rm -f ./trace/*_gtrace.go
+        go generate ./trace
+        go generate ./...
+
+    - name: Re-generate stack.FunctionID calls
+      run: |
+        gstack .
+
+    - name: Check repository diff
+      run: bash ./.github/scripts/check-work-copy-equals-to-committed.sh "code-generation not equal with committed"

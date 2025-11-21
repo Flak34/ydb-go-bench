@@ -7,6 +7,7 @@ import (
 	"github.com/ydb-platform/ydb-go-sdk/v3/query"
 )
 
+// Bench с включенной опцией
 func BenchmarkConcurrentResultSetsEnabled(b *testing.B) {
 	q := strings.Join(selects, "")
 	var err error
@@ -19,6 +20,7 @@ func BenchmarkConcurrentResultSetsEnabled(b *testing.B) {
 	}
 }
 
+// Bench с выключенной опцией
 func BenchmarkConcurrentResultSetsDisabled(b *testing.B) {
 	q := strings.Join(selects, "")
 	var err error
@@ -31,6 +33,7 @@ func BenchmarkConcurrentResultSetsDisabled(b *testing.B) {
 	}
 }
 
+// Просто для сравнения серия последовательных запросов
 func BenchmarkMultipleRequests(b *testing.B) {
 	var err error
 	b.ResetTimer()

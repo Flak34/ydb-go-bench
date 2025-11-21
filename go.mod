@@ -24,6 +24,6 @@ require (
 	google.golang.org/protobuf v1.36.6 // indirect
 )
 
-replace github.com/ydb-platform/ydb-go-sdk/v3 v3.117.1 => ../ydb-go-sdk
+replace github.com/ydb-platform/ydb-go-sdk/v3 v3.117.1 => ./ydb-go-sdk
 
 replace google.golang.org/genproto => google.golang.org/genproto v0.0.0-20250804133106-a7a43d27e69b
